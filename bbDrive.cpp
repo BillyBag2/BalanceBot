@@ -3,7 +3,7 @@
 #include "arduino.h"
 
 #define RIGHT_ANALOG 3
-#define RIGHT_DIRECTION 2
+#define RIGHT_DIRECTION 6
 #define RIGHT_ANALOG_INV true
 #define RIGHT_DIRECTION_INV false
 
