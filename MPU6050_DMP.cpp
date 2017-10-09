@@ -101,7 +101,7 @@ MPU6050 mpu;
 // from the FIFO. Note this also requires gravity vector calculations.
 // Also note that yaw/pitch/roll angles suffer from gimbal lock (for
 // more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-#define OUTPUT_READABLE_YAWPITCHROLL
+//#define OUTPUT_READABLE_YAWPITCHROLL
 
 // uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
 // components with gravity removed. This acceleration reference frame is
@@ -157,13 +157,36 @@ void dmpDataReady() {
     mpuInterrupt = true;
 }
 
+//uint8_t dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
+//    // yaw: (about Z axis)
+//    data[0] = atan2(2 * q->x * q->y - 2 * q->w * q-> z, 2 * q->w *q->w + 2 * q->x * q->x - 1);
+//    // pitch: (nose up/down, about Y axis)
+//    data[1] = atan(gravity->x / sqrt(gravity->y * gravity->y + gravity->z * gravity->z));
+//    // roll: (tilt left/right, about X axis)
+//    data[2] = atan(gravity->y / sqrt(gravity ->x * gravity->x + gravity->z * gravity->z));
+//    return 0;
+//}
 
+// For rotation
+// Yaw z -> -x
+// Pitch is about Y axis
+// Roll x -> z
+
+uint8_t dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
+    // yaw: (about Z axis)
+    data[0] = atan2(2 * q->z * q->y - 2 * q->w * (q->x), 2 * q->w *q->w + 2 * q->z * q->z - 1);
+    // pitch: (nose up/down, about Y axis)
+    data[1] = atan(gravity->z / sqrt(gravity->y * gravity->y + gravity->x * gravity->x));
+    // roll: (tilt left/right, about X axis)
+    data[2] = atan(gravity->y / sqrt(gravity ->z * gravity->z + gravity->x * gravity->x));
+    return 0;
+}
 
 // ================================================================
 // ===                      INITIAL SETUP                       ===
 // ================================================================
 
-void setup() {
+void GyroSetup(void) {
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
@@ -175,8 +198,8 @@ void setup() {
     // initialize serial communication
     // (115200 chosen because it is required for Teapot Demo output, but it's
     // really up to you depending on your project)
-    Serial.begin(115200);
-    while (!Serial); // wait for Leonardo enumeration, others continue immediately
+    //Serial.begin(115200);
+    //while (!Serial); // wait for Leonardo enumeration, others continue immediately
 
     // NOTE: 8MHz or slower host processors, like the Teensy @ 3.3v or Ardunio
     // Pro Mini running at 3.3v, cannot handle this baud rate reliably due to
@@ -185,22 +208,22 @@ void setup() {
     // crystal solution for the UART timer.
 
     // initialize device
-    Serial.println(F("Initializing I2C devices..."));
+    //Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
     pinMode(INTERRUPT_PIN, INPUT);
 
     // verify connection
-    Serial.println(F("Testing device connections..."));
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    //Serial.println(F("Testing device connections..."));
+    //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
     // wait for ready
-    Serial.println(F("\nSend any character to begin DMP programming and demo: "));
-    while (Serial.available() && Serial.read()); // empty buffer
-    while (!Serial.available());                 // wait for data
-    while (Serial.available() && Serial.read()); // empty buffer again
+    //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+    //while (Serial.available() && Serial.read()); // empty buffer
+    //while (!Serial.available());                 // wait for data
+    //while (Serial.available() && Serial.read()); // empty buffer again
 
     // load and configure the DMP
-    Serial.println(F("Initializing DMP..."));
+    //Serial.println(F("Initializing DMP..."));
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
@@ -212,16 +235,16 @@ void setup() {
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
         // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
+        //Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+        //Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        //Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -231,9 +254,9 @@ void setup() {
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+        //Serial.print(F("DMP Initialization failed (code "));
+        //Serial.print(devStatus);
+        //Serial.println(F(")"));
     }
 
     // configure LED for output
@@ -246,23 +269,13 @@ void setup() {
 // ===                    MAIN PROGRAM LOOP                     ===
 // ================================================================
 
-void loop() {
+float * GyroGet(void) {
     // if programming failed, don't try to do anything
-    if (!dmpReady) return;
+    if (!dmpReady) return NULL;
 
     // wait for MPU interrupt or extra packet(s) available
-    while (!mpuInterrupt && fifoCount < packetSize) {
-        // other program behavior stuff here
-        // .
-        // .
-        // .
-        // if you are really paranoid you can frequently test in between other
-        // stuff to see if mpuInterrupt is true, and if so, "break;" from the
-        // while() loop to immediately process the MPU data
-        // .
-        // .
-        // .
-    }
+    if (!mpuInterrupt && fifoCount < packetSize) return NULL;
+    
 
     // reset interrupt flag and get INT_STATUS byte
     mpuInterrupt = false;
@@ -275,7 +288,7 @@ void loop() {
     if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
         // reset so we can continue cleanly
         mpu.resetFIFO();
-        Serial.println(F("FIFO overflow!"));
+        //Serial.println(F("FIFO overflow!"));
 
     // otherwise, check for DMP data ready interrupt (this should happen frequently)
     } else if (mpuIntStatus & 0x02) {
@@ -292,39 +305,46 @@ void loop() {
         #ifdef OUTPUT_READABLE_QUATERNION
             // display quaternion values in easy matrix form: w x y z
             mpu.dmpGetQuaternion(&q, fifoBuffer);
-            Serial.print("quat\t");
-            Serial.print(q.w);
-            Serial.print("\t");
-            Serial.print(q.x);
-            Serial.print("\t");
-            Serial.print(q.y);
-            Serial.print("\t");
-            Serial.println(q.z);
+            //Serial.print("quat\t");
+            //Serial.print(q.w);
+            //Serial.print("\t");
+            //Serial.print(q.x);
+            //Serial.print("\t");
+            //Serial.print(q.y);
+            //Serial.print("\t");
+            //Serial.println(q.z);
         #endif
 
         #ifdef OUTPUT_READABLE_EULER
             // display Euler angles in degrees
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetEuler(euler, &q);
-            Serial.print("euler\t");
-            Serial.print(euler[0] * 180/M_PI);
-            Serial.print("\t");
-            Serial.print(euler[1] * 180/M_PI);
-            Serial.print("\t");
-            Serial.println(euler[2] * 180/M_PI);
+            //Serial.print("euler\t");
+            //Serial.print(euler[0] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.print(euler[1] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.println(euler[2] * 180/M_PI);
         #endif
+
+        // Get roll pitch and yaw.
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        dmpGetYawPitchRoll(ypr, &q, &gravity); // ypr becomes rpy as MPU6050 is rotsted.
+
+
 
         #ifdef OUTPUT_READABLE_YAWPITCHROLL
             // display Euler angles in degrees
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            Serial.print("ypr\t");
-            Serial.print(ypr[0] * 180/M_PI);
-            Serial.print("\t");
-            Serial.print(ypr[1] * 180/M_PI);
-            Serial.print("\t");
-            Serial.println(ypr[2] * 180/M_PI);
+            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity); // ypr becomes rpy as MPU6050 is rotsted.
+            //Serial.print("rpy\t");
+            //Serial.print(ypr[0] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.print(ypr[1] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.println(ypr[2] * 180/M_PI);
         #endif
 
         #ifdef OUTPUT_READABLE_REALACCEL
@@ -333,12 +353,12 @@ void loop() {
             mpu.dmpGetAccel(&aa, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.print("areal\t");
-            Serial.print(aaReal.x);
-            Serial.print("\t");
-            Serial.print(aaReal.y);
-            Serial.print("\t");
-            Serial.println(aaReal.z);
+            //Serial.print("areal\t");
+            //Serial.print(aaReal.x);
+            //Serial.print("\t");
+            //Serial.print(aaReal.y);
+            //Serial.print("\t");
+            //Serial.println(aaReal.z);
         #endif
 
         #ifdef OUTPUT_READABLE_WORLDACCEL
@@ -349,12 +369,12 @@ void loop() {
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
             mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-            Serial.print("aworld\t");
-            Serial.print(aaWorld.x);
-            Serial.print("\t");
-            Serial.print(aaWorld.y);
-            Serial.print("\t");
-            Serial.println(aaWorld.z);
+            //Serial.print("aworld\t");
+            //Serial.print(aaWorld.x);
+            //Serial.print("\t");
+            //Serial.print(aaWorld.y);
+            //Serial.print("\t");
+            //Serial.println(aaWorld.z);
         #endif
     
         #ifdef OUTPUT_TEAPOT
@@ -367,7 +387,7 @@ void loop() {
             teapotPacket[7] = fifoBuffer[9];
             teapotPacket[8] = fifoBuffer[12];
             teapotPacket[9] = fifoBuffer[13];
-            Serial.write(teapotPacket, 14);
+            //Serial.write(teapotPacket, 14);
             teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
         #endif
 
@@ -375,4 +395,5 @@ void loop() {
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
     }
+    return ypr;
 }
