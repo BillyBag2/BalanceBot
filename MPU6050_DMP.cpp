@@ -141,7 +141,7 @@ VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measur
 VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
 VectorFloat gravity;    // [x, y, z]            gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+float ypr[3];           // [yaw, pitch, roll,x,yzz]   yaw/pitch/roll container and gyros
 
 // packet structure for InvenSense teapot demo
 uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
@@ -227,10 +227,10 @@ void GyroSetup(void) {
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(/* 220 */ 112);
-    mpu.setYGyroOffset(/*76*/ -38);
-    mpu.setZGyroOffset(/*-85*/-14);
-    mpu.setZAccelOffset(/*1788*/1065); // 1688 factory default for my test chip
+    mpu.setXGyroOffset(/* 220 */ 110);
+    mpu.setYGyroOffset(/*76*/ -9);
+    mpu.setZGyroOffset(/*-85*/25);
+    mpu.setZAccelOffset(/*1788*/1685); // 1688 factory default for my test chip
 
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
@@ -269,7 +269,7 @@ void GyroSetup(void) {
 // ===                    MAIN PROGRAM LOOP                     ===
 // ================================================================
 
-float * GyroGet(void) {
+float * GyroGet(int32_t * gyroXyz) {
     // if programming failed, don't try to do anything
     if (!dmpReady) return NULL;
 
@@ -331,7 +331,7 @@ float * GyroGet(void) {
         mpu.dmpGetQuaternion(&q, fifoBuffer);
         mpu.dmpGetGravity(&gravity, &q);
         dmpGetYawPitchRoll(ypr, &q, &gravity); // ypr becomes rpy as MPU6050 is rotsted.
-
+        mpu.dmpGetGyro(gyroXyz, fifoBuffer);
 
 
         #ifdef OUTPUT_READABLE_YAWPITCHROLL

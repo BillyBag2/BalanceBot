@@ -3,6 +3,10 @@
 //
 
 #define USE_SBUS 0
+#define BALANCE_POINT -5.0  /* -10 -5 */
+
+#define PID_P -45.0
+#define PID_D -0.000015
 
 #include "bbDrive.h"
 #include "SBUS.h"
@@ -24,7 +28,9 @@ void setup() {
 }
 
 void loop() {
-  float * ypr = GyroGet();
+  int32_t gyroXyz[3];
+  float * ypr = GyroGet(gyroXyz);
+  
 #if USE_SBUS
   sbus.process();
   
@@ -52,8 +58,7 @@ void loop() {
   //drive.set(0,0);
   if(ypr != NULL)
   {
-    float P = -30.0;
-    float pitch = (ypr[1] * 180/M_PI) + 13; /* 10 - 14 */
+    float pitch = (ypr[1] * 180/M_PI) + BALANCE_POINT; /* 10 - 14 */
     //Serial.print("YPR ");
     //Serial.print(ypr[0] * 180/M_PI);Serial.print("\t");
     //Serial.print(ypr[1] * 180/M_PI);Serial.print("\t");
@@ -64,7 +69,7 @@ void loop() {
     }
     else
     {
-      drive.set((int)(pitch * P),0);
+      drive.set((int)(pitch * PID_P) - (gyroXyz[1] * PID_D),0);
     }
   }
 #endif
