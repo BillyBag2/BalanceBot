@@ -5,13 +5,24 @@
 #define USE_SBUS 0
 #define BALANCE_POINT -5.0  /* -10 -5 */
 
-#define PID_P -45.0
-#define PID_D -0.000015
+#if 1 /*coorection ^ 1 */
+#define PID_P -45.0 /* -45.0 */
+#define PID_D -0.00001 /* -0.000015 ? */
+#define PID_I -0.0001 /* Sudo I -0.0003 */
+#endif
+
+#if 0 /*coorection ^ 3 */
+#define PID_P -2 /* -45.0 */
+#define PID_D -0.000001 /* -0.000015 ? */
+#define PID_I -0.0001 /* Sudo I -0.0003 */
+#endif
+
 
 #include "bbDrive.h"
 #include "SBUS.h"
 #include "MPU6050_DMP.h"
 
+float balancePoint = BALANCE_POINT;
 
 bbDrive drive;
 #if USE_SBUS
@@ -58,7 +69,7 @@ void loop() {
   //drive.set(0,0);
   if(ypr != NULL)
   {
-    float pitch = (ypr[1] * 180/M_PI) + BALANCE_POINT; /* 10 - 14 */
+    float pitch = (ypr[1] * 180/M_PI) + balancePoint; /* 10 - 14 */
     //Serial.print("YPR ");
     //Serial.print(ypr[0] * 180/M_PI);Serial.print("\t");
     //Serial.print(ypr[1] * 180/M_PI);Serial.print("\t");
@@ -69,7 +80,25 @@ void loop() {
     }
     else
     {
-      drive.set((int)(pitch * PID_P) - (gyroXyz[1] * PID_D),0);
+      float correction = (pitch * PID_P) - (gyroXyz[1] * PID_D);
+      drive.set((int)correction,0);
+      if(correction > 10.0)
+      {
+        correction = 10.0;
+      }
+      if(correction < -10.0)
+      {
+        correction = -10.0;
+      }
+      balancePoint += correction * PID_I;
+      if(balancePoint > 20.0)
+      {
+        balancePoint = 20.0;
+      }
+      if(balancePoint < -20.0)
+      {
+        balancePoint = -20.0;
+      }
     }
   }
 #endif
