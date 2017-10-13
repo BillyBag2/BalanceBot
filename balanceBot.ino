@@ -3,26 +3,21 @@
 //
 
 #define USE_SBUS 0
-#define BALANCE_POINT -5.0  /* -10 -5 */
+#define BALANCE_POINT -7.0  /* -5 */
+#define MAX_ANGLE 45.0
+#define CUT_ANGLE 45.0
 
-#if 1 /*coorection ^ 1 */
-#define PID_P -45.0 /* -45.0 */
-#define PID_D -0.00001 /* -0.000015 ? */
-#define PID_I -0.0001 /* Sudo I -0.0003 */
-#endif
-
-#if 0 /*coorection ^ 3 */
-#define PID_P -2 /* -45.0 */
-#define PID_D -0.000001 /* -0.000015 ? */
-#define PID_I -0.0001 /* Sudo I -0.0003 */
-#endif
-
+#define PID_P -2.9        /* -3*/
+#define PID_D -0.000012    /* -0.00002*/
+#define PID_I -0.00001    /* -0.00001*/
 
 #include "bbDrive.h"
 #include "SBUS.h"
 #include "MPU6050_DMP.h"
 
-float balancePoint = BALANCE_POINT;
+float gBalancePoint = BALANCE_POINT;
+float gSpeed = 0.0;
+float gTargetSpeed = 0.0;
 
 bbDrive drive;
 #if USE_SBUS
@@ -38,9 +33,23 @@ void setup() {
   GyroSetup();
 }
 
+float saturate(float a,float range)
+{
+  if(a > range)
+  {
+    a = range;
+  }
+  if(a < -range)
+  {
+    a = -range;
+  }
+  return a;
+}
+
 void loop() {
   int32_t gyroXyz[3];
   float * ypr = GyroGet(gyroXyz);
+
   
 #if USE_SBUS
   sbus.process();
@@ -66,39 +75,26 @@ void loop() {
     drive.set(0,0);
   }
 #else
-  //drive.set(0,0);
   if(ypr != NULL)
   {
-    float pitch = (ypr[1] * 180/M_PI) + balancePoint; /* 10 - 14 */
-    //Serial.print("YPR ");
-    //Serial.print(ypr[0] * 180/M_PI);Serial.print("\t");
-    //Serial.print(ypr[1] * 180/M_PI);Serial.print("\t");
-    //Serial.println(ypr[2] * 180/M_PI);
-    if((pitch > 45) || (pitch < -45))
+    float pitch = (ypr[1] * 180/M_PI) + gBalancePoint; /* 10 - 14 */
+    if((pitch > CUT_ANGLE) || (pitch < -CUT_ANGLE))
     {
       drive.set(0,0);
+      gSpeed = 0;
+      gBalancePoint = ((gBalancePoint - BALANCE_POINT) * 0.1) + BALANCE_POINT;
     }
     else
     {
-      float correction = (pitch * PID_P) - (gyroXyz[1] * PID_D);
-      drive.set((int)correction,0);
-      if(correction > 10.0)
-      {
-        correction = 10.0;
-      }
-      if(correction < -10.0)
-      {
-        correction = -10.0;
-      }
-      balancePoint += correction * PID_I;
-      if(balancePoint > 20.0)
-      {
-        balancePoint = 20.0;
-      }
-      if(balancePoint < -20.0)
-      {
-        balancePoint = -20.0;
-      }
+      float correction = (pitch * PID_P) /* - (gyroXyz[1] * PID_D) */; 
+      gSpeed = gSpeed + correction - (gyroXyz[1] * PID_D);
+      gSpeed = saturate(gSpeed, 255.0);
+      drive.set((int)gSpeed,0);
+
+gTargetSpeed = 0.0;
+      
+      gBalancePoint += (gSpeed - gTargetSpeed) * PID_I;
+      gBalancePoint = saturate(gBalancePoint, MAX_ANGLE);
     }
   }
 #endif
