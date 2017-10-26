@@ -9,7 +9,7 @@
 
 #define PID_P -2.9        /* -3*/
 #define PID_D -0.000012    /* -0.00002*/
-#define PID_I -0.00001    /* -0.00001*/
+#define PID_I -0.000001   /* -0.00001*/
 
 #include "bbDrive.h"
 #include "SBUS.h"
@@ -82,17 +82,14 @@ void loop() {
     {
       drive.set(0,0);
       gSpeed = 0;
-      gBalancePoint = ((gBalancePoint - BALANCE_POINT) * 0.1) + BALANCE_POINT;
+      gBalancePoint = ((gBalancePoint - BALANCE_POINT) * 0.001) + BALANCE_POINT;
     }
     else
     {
-      float correction = (pitch * PID_P) /* - (gyroXyz[1] * PID_D) */; 
+      float correction = (pitch * PID_P);
       gSpeed = gSpeed + correction - (gyroXyz[1] * PID_D);
       gSpeed = saturate(gSpeed, 255.0);
       drive.set((int)gSpeed,0);
-
-gTargetSpeed = 0.0;
-      
       gBalancePoint += (gSpeed - gTargetSpeed) * PID_I;
       gBalancePoint = saturate(gBalancePoint, MAX_ANGLE);
     }
