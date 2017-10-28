@@ -7,14 +7,20 @@
 #define MAX_ANGLE 45.0
 #define CUT_ANGLE 45.0
 
-#define PID_P -2.9        /* -3*/
+// -4 , -0.000012 , -0.001 
+
+#define PID_P -4 /*  -4   */     /* -3*/
 #define PID_D -0.000012    /* -0.00002*/
-#define PID_I -0.000001   /* -0.00001*/
+#define PID_I -0.001   /* -0.00001*/
+
+#define GTYRO_CAL_SAMPLES 300
 
 #include "bbDrive.h"
 #include "SBUS.h"
 #include "MPU6050_DMP.h"
 
+int gGyroCalSamplesToGo = GTYRO_CAL_SAMPLES;
+float gGyroOffset = 0.0;
 float gBalancePoint = BALANCE_POINT;
 float gSpeed = 0.0;
 float gTargetSpeed = 0.0;
@@ -77,21 +83,37 @@ void loop() {
 #else
   if(ypr != NULL)
   {
-    float pitch = (ypr[1] * 180/M_PI) + gBalancePoint; /* 10 - 14 */
-    if((pitch > CUT_ANGLE) || (pitch < -CUT_ANGLE))
+    if(gGyroCalSamplesToGo > 0)
     {
-      drive.set(0,0);
-      gSpeed = 0;
-      gBalancePoint = ((gBalancePoint - BALANCE_POINT) * 0.001) + BALANCE_POINT;
+      gGyroCalSamplesToGo--;
+      gGyroOffset += (float)gyroXyz[1];
+      if(0 == gGyroCalSamplesToGo)
+      {
+        gGyroOffset = gGyroOffset / (float)GTYRO_CAL_SAMPLES;
+      }
+      
     }
     else
     {
-      float correction = (pitch * PID_P);
-      gSpeed = gSpeed + correction - (gyroXyz[1] * PID_D);
-      gSpeed = saturate(gSpeed, 255.0);
-      drive.set((int)gSpeed,0);
-      gBalancePoint += (gSpeed - gTargetSpeed) * PID_I;
-      gBalancePoint = saturate(gBalancePoint, MAX_ANGLE);
+      // Correct Gyro.
+      //gyroXyz[1] = gyroXyz[1];
+      
+      float pitch = (ypr[1] * 180/M_PI) + gBalancePoint; /* 10 - 14 */
+      if((pitch > CUT_ANGLE) || (pitch < -CUT_ANGLE))
+      {
+        drive.set(0,0);
+        gSpeed = 0;
+        gBalancePoint = ((gBalancePoint - BALANCE_POINT) * 0.001) + BALANCE_POINT;
+      }
+      else
+      {
+        float correction = (pitch * PID_P);
+        gSpeed = gSpeed + correction - ((gyroXyz[1] - gGyroOffset) * PID_D);
+        gSpeed = saturate(gSpeed, 255.0);
+        drive.set((int)gSpeed,0);
+        gBalancePoint += (gSpeed - gTargetSpeed) * PID_I;
+        gBalancePoint = saturate(gBalancePoint, MAX_ANGLE);
+      }
     }
   }
 #endif
